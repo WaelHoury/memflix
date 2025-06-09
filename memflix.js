@@ -359,6 +359,61 @@ class Memflix {
         });
     }
 
+    async ragQuery(query, options = {}) {
+        const {
+            model = 'gpt-3.5-turbo',
+            maxChunks = 5,
+            llmProvider = 'openai',
+            apiKey = process.env.OPENAI_API_KEY,
+            baseURL = process.env.OLLAMA_URL || 'http://localhost:11434'
+        } = options;
+
+        const relevantChunks = await this.search(query, maxChunks);
+        const context = relevantChunks.map(chunk => chunk.text).join('\n\n');
+
+        const prompt = `Context:\n${context}\n\nQuestion: ${query}\n\nAnswer:`;
+
+        switch (llmProvider) {
+            case 'openai':
+                return this.queryOpenAI(prompt, model, apiKey);
+            case 'anthropic':
+                return this.queryAnthropic(prompt, model, apiKey);
+            case 'ollama':
+                return this.queryOllama(prompt, model, baseURL);
+            default:
+                throw new Error(`Unsupported LLM provider: ${llmProvider}`);
+        }
+    }
+
+    async queryOpenAI(prompt, model, apiKey) {
+        const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+            model,
+            messages: [{ role: 'user', content: prompt }]
+        }, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+
+        return response.data.choices[0].message.content;
+    }
+
+    async queryAnthropic(prompt, model, apiKey) {
+        const response = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: model || 'claude-3-sonnet-20240229',
+            max_tokens: 1000,
+            messages: [{ role: 'user', content: prompt }]
+        }, { headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' } });
+
+        return response.data.content[0].text;
+    }
+
+    async queryOllama(prompt, model, baseURL) {
+        const response = await axios.post(`${baseURL}/api/generate`, {
+            model,
+            prompt,
+            stream: false
+        });
+
+        return response.data.response;
+    }
+
     cosineSimilarity(a, b) {
         const dotProduct = a.reduce((sum, ai, i) => sum + ai * b[i], 0);
         const magnitudeA = Math.sqrt(a.reduce((sum, ai) => sum + ai * ai, 0));
