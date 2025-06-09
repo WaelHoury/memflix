@@ -303,8 +303,6 @@ class Memflix {
         });
     }
 
-    // Add these methods to Memflix class:
-
     async processPDF(pdfPath, metadata = {}) {
         const pdfParse = require('pdf-parse');
         const buffer = await fs.readFile(pdfPath);
